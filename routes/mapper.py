@@ -7,7 +7,7 @@ import pkg_resources
 from repoze.lru import LRUCache
 
 from routes import request_config
-from routes.util import controller_scan, MatchException, RoutesException
+from routes.util import controller_scan, MatchException, RoutesException, as_unicode
 from routes.route import Route
 
 
@@ -92,7 +92,7 @@ class SubMapperParent(object):
         
         Its interface is the same as the ``submapper`` together with
         ``member_prefix``, ``member_actions`` and ``member_options``
-        which are passed to the ``member` submatter as ``path_prefix``,
+        which are passed to the ``member`` submapper as ``path_prefix``,
         ``actions`` and keyword arguments respectively.
         
         Example::
@@ -160,6 +160,8 @@ class SubMapper(SubMapperParent):
             elif key in kwargs:
                 if isinstance(value, dict):
                     newkargs[key] = dict(value, **kwargs[key]) # merge dicts
+                elif key == 'controller':
+                    newkargs[key] = kwargs[key]
                 else:
                     newkargs[key] = value + kwargs[key]
             else:
@@ -594,7 +596,10 @@ class Mapper(SubMapperParent):
         # Save the master regexp
         regexp = '|'.join(['(?:%s)' % x for x in regexps])
         self._master_reg = regexp
-        self._master_regexp = re.compile(regexp)
+        try:
+            self._master_regexp = re.compile(regexp)
+        except OverflowError:
+            self._master_regexp = None
         self._created_regs = True
     
     def _match(self, url, environ):
@@ -631,9 +636,15 @@ class Mapper(SubMapperParent):
         domain_match = self.domain_match
         debug = self.debug
         
-        # Check to see if its a valid url against the main regexp
-        # Done for faster invalid URL elimination
-        valid_url = re.match(self._master_regexp, url)
+        if self._master_regexp is not None:
+            # Check to see if its a valid url against the main regexp
+            # Done for faster invalid URL elimination
+            valid_url = re.match(self._master_regexp, url)
+        else:
+            # Regex is None due to OverflowError caused by too many routes.
+            # This will allow larger projects to work but might increase time
+            # spent invalidating URLs in the loop below.
+            valid_url = True
         if not valid_url:
             return (None, None, matchlog)
         
@@ -742,6 +753,9 @@ class Mapper(SubMapperParent):
                 if val != self:
                     return val
         
+        controller = as_unicode(controller, self.encoding)
+        action = as_unicode(action, self.encoding)
+
         actionlist = self._gendict.get(controller) or self._gendict.get('*', {})
         if not actionlist and not args:
             return None
@@ -765,44 +779,60 @@ class Mapper(SubMapperParent):
                 if len(route.minkeys - route.dotkeys - keys) == 0:
                     newlist.append(route)
             keylist = newlist
+
+            class KeySorter:
+
+                def __init__(self, obj, *args):
+                    self.obj = obj
+
+                def __lt__(self, other):
+                    return self._keysort(self.obj, other.obj) < 0
             
-            def keysort(a, b):
-                """Sorts two sets of sets, to order them ideally for
-                matching."""
-                am = a.minkeys
-                a = a.maxkeys
-                b = b.maxkeys
-                
-                lendiffa = len(keys^a)
-                lendiffb = len(keys^b)
-                # If they both match, don't switch them
-                if lendiffa == 0 and lendiffb == 0:
-                    return 0
-                
-                # First, if a matches exactly, use it
-                if lendiffa == 0:
-                    return -1
-                
-                # Or b matches exactly, use it
-                if lendiffb == 0:
-                    return 1
-                
-                # Neither matches exactly, return the one with the most in 
-                # common
-                if cmp(lendiffa, lendiffb) != 0:
-                    return cmp(lendiffa, lendiffb)
-                
-                # Neither matches exactly, but if they both have just as much 
-                # in common
-                if len(keys&b) == len(keys&a):
-                    # Then we return the shortest of the two
-                    return cmp(len(a), len(b))
-                
-                # Otherwise, we return the one that has the most in common
-                else:
-                    return cmp(len(keys&b), len(keys&a))
+                def _keysort(self, a, b):
+                    """Sorts two sets of sets, to order them ideally for
+                    matching."""
+                    am = a.minkeys
+                    a = a.maxkeys
+                    b = b.maxkeys
+
+                    lendiffa = len(keys^a)
+                    lendiffb = len(keys^b)
+                    # If they both match, don't switch them
+                    if lendiffa == 0 and lendiffb == 0:
+                        return 0
+
+                    # First, if a matches exactly, use it
+                    if lendiffa == 0:
+                        return -1
+
+                    # Or b matches exactly, use it
+                    if lendiffb == 0:
+                        return 1
+
+                    # Neither matches exactly, return the one with the most in
+                    # common
+                    if self._compare(lendiffa, lendiffb) != 0:
+                        return self._compare(lendiffa, lendiffb)
+
+                    # Neither matches exactly, but if they both have just as much
+                    # in common
+                    if len(keys&b) == len(keys&a):
+                        # Then we return the shortest of the two
+                        return self._compare(len(a), len(b))
+
+                    # Otherwise, we return the one that has the most in common
+                    else:
+                        return self._compare(len(keys&b), len(keys&a))
+
+                def _compare(self, obj1, obj2):
+                    if obj1 < obj2:
+                        return -1
+                    elif obj1 < obj2:
+                        return 1
+                    else:
+                        return 0
             
-            keylist.sort(keysort)
+            keylist.sort(key=KeySorter)
             if cacheset:
                 sortcache[cachekey] = keylist
                 
@@ -814,10 +844,7 @@ class Mapper(SubMapperParent):
                 kval = kargs.get(key)
                 if not kval:
                     continue
-                if isinstance(kval, str):
-                    kval = kval.decode(self.encoding)
-                else:
-                    kval = unicode(kval)
+                kval = as_unicode(kval, self.encoding)
                 if kval != route.defaults[key] and not callable(route.defaults[key]):
                     fail = True
                     break
