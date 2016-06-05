@@ -22,14 +22,14 @@ Installing
 ==========
 
 Routes can be easily installed with pip or easy_install::
-   
+
    $ easy_install routes
 
 Example
 =======
 
 .. code-block:: python
-   
+
    # Setup a mapper
    from routes import Mapper
    map = Mapper()
@@ -45,25 +45,34 @@ Source
 
 The `routes source can be found on GitHub <http://github.com/bbangert/routes>`_.
 
+Bugs/Support
+============
+
+Bug's can be reported on the `github issue tracker
+<https://github.com/bbangert/routes/issues>`_. Note that routes is in maintenance
+mode so bug reports are unlikely to be worked on, pull requests will be applied
+if submitted with tests.
+
 Documentation
 =============
 
 .. toctree::
    :maxdepth: 2
-   
+
    introduction
    setting_up
    generating
    restful
    uni_redirect_rest
    changes
+   todo
 
 .. toctree::
    :maxdepth: 1
 
    glossary
    porting
-   
+
 
 Indices and tables
 ==================

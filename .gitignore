@@ -12,3 +12,6 @@ html_coverage
 .hgignore
 .idea
 *.iml
+.tox/
+.eggs/
+.coverage

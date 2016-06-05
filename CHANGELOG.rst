@@ -1,6 +1,49 @@
 Routes Changelog
 %%%%%%%%%%%%%%%%
 
+Release 2.3.1 (March 30, 2016)
+==============================
+* Backwards compatability fix - connect should work with mandatory
+  routename and optional path. Patch by Davanum Srinivas (PR #65).
+
+Release 2.3 (March 28, 2016)
+============================
+* Fix sub_domain equivalence check. Patch by Nikita Uvarov
+* Add support for protocol-relative URLs generation (i.e. starting with double
+  slash ``//``). PR #60. Patch by Sviatoslav Sydorenko.
+* Add support for the ``middleware`` extra requirement, making possible to
+  depend on ``webob`` optionally. PR #59. Patch by Sviatoslav Sydorenko.
+* Fix matching of an empty string route, which led to exception in earlier
+  versions. PR #58. Patch by Sviatoslav Sydorenko.
+* Add support for the ``requirements`` option when using
+  mapper.resource to create routes. PR #57. Patch by Sean Dague.
+* Concatenation fix when using submappers with path prefixes. Multiple
+  submappers combined the path prefix inside the controller argument in
+  non-obvious ways. The controller argument will now be properly carried
+  through when using submappers. PR #28.
+
+Release 2.2 (July 21, 2015)
+===========================
+* Fix Python 3 support. Patch by Victor Stinner.
+
+Release 2.1 (January 17, 2015)
+==============================
+* Fix 3 other route matching groups in route.py to use anonymous groups for
+  optional sections to avoid exceeding regex limits. Fixes #15.
+* Printing a mapper now includes the Controller/action parameters from the
+  route. Fixes #11.
+* Fix regression that didn't allow passing in params 'host', 'protocol', or
+  'anchor'. They can now be passed in with a trailing '_' as was possible
+  before commit d1d1742903fa5ca24ef848a6ae895303f2661b2a. Fixes #7.
+* URL generation with/without SCRIPT_NAME was resulting in the URL cache
+  failing to return the appropriate cached URL generation. The URL cache
+  should always include the SCRIPT_NAME, even if its empty, in the cache
+  to avoid this, and now does. Fixes #6.
+* Extract Route creation into separate method in Mapper.  Subclasses of Route
+  can be created by Mappers now.
+* Use the first X_FORWARDED_FOR value if there are multiple proxies in the
+  path. Fixes #5.
+
 Release 2.0 (November 17, 2013)
 ===============================
 * Python 3.2/3.3 Support. Fixes Issue #2. Thanks to Alejandro Sánchez for
@@ -396,7 +439,7 @@ Release 1.0 (Nov. 21st, 2005)
 
   Or::
 
-       from routes import request_confg, Mapper
+       from routes import request_config, Mapper
 
   The following names are available for importing from routes::
 
